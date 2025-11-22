@@ -31,7 +31,7 @@
 //! Writing an archive:
 //!
 //! ```no_run
-//! use ar::Builder;
+//! use tokio_ar::Builder;
 //! use std::fs::File;
 //! // Create a new archive that will be written to foo.a:
 //! let mut builder = Builder::new(File::create("foo.a").unwrap());
@@ -45,7 +45,7 @@
 //! Reading an archive:
 //!
 //! ```no_run
-//! use ar::Archive;
+//! use tokio_ar::Archive;
 //! use std::fs::File;
 //! use std::io;
 //! use std::str;

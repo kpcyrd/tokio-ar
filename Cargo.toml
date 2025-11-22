@@ -1,10 +1,11 @@
 [package]
-name = "ar"
+name = "tokio-ar"
 version = "0.9.0"
-authors = ["Matthew D. Steele <mdsteele@alum.mit.edu>"]
+authors = ["Matthew D. Steele <mdsteele@alum.mit.edu>", "kpcyrd <git@rxv.cc>"]
 description = "A library for encoding/decoding Unix archive files."
 repository = "https://github.com/mdsteele/rust-ar"
 keywords = ["ar", "archive", "deb"]
 license = "MIT"
 readme = "README.md"
+edition = "2024"
 

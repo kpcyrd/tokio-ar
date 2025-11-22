@@ -8,8 +8,8 @@ use std::str;
 use std::os::unix::fs::MetadataExt;
 
 use crate::archive::{
-    Variant, BSD_SORTED_SYMBOL_LOOKUP_TABLE_ID, BSD_SYMBOL_LOOKUP_TABLE_ID,
-    GNU_NAME_TABLE_ID, GNU_SYMBOL_LOOKUP_TABLE_ID,
+    BSD_SORTED_SYMBOL_LOOKUP_TABLE_ID, BSD_SYMBOL_LOOKUP_TABLE_ID,
+    GNU_NAME_TABLE_ID, GNU_SYMBOL_LOOKUP_TABLE_ID, Variant,
 };
 use crate::error::annotate;
 
@@ -126,16 +126,16 @@ impl Header {
         let bytes_read = reader.read(&mut buffer)?;
         if bytes_read == 0 {
             return Ok(None);
-        } else if bytes_read < buffer.len() {
-            if let Err(error) = reader.read_exact(&mut buffer[bytes_read..]) {
-                if error.kind() == ErrorKind::UnexpectedEof {
-                    let msg = "unexpected EOF in the middle of archive entry \
+        } else if bytes_read < buffer.len()
+            && let Err(error) = reader.read_exact(&mut buffer[bytes_read..])
+        {
+            if error.kind() == ErrorKind::UnexpectedEof {
+                let msg = "unexpected EOF in the middle of archive entry \
                                header";
-                    return Err(Error::new(ErrorKind::UnexpectedEof, msg));
-                } else {
-                    let msg = "failed to read archive entry header";
-                    return Err(annotate(error, msg));
-                }
+                return Err(Error::new(ErrorKind::UnexpectedEof, msg));
+            } else {
+                let msg = "failed to read archive entry header";
+                return Err(annotate(error, msg));
             }
         }
         let mut identifier = buffer[0..16].to_vec();
@@ -206,18 +206,17 @@ impl Header {
             header_len += padded_length;
             let mut id_buffer = vec![0; padded_length as usize];
             let bytes_read = reader.read(&mut id_buffer)?;
-            if bytes_read < id_buffer.len() {
-                if let Err(error) =
+            if bytes_read < id_buffer.len()
+                && let Err(error) =
                     reader.read_exact(&mut id_buffer[bytes_read..])
-                {
-                    if error.kind() == ErrorKind::UnexpectedEof {
-                        let msg = "unexpected EOF in the middle of extended \
+            {
+                if error.kind() == ErrorKind::UnexpectedEof {
+                    let msg = "unexpected EOF in the middle of extended \
                                    entry identifier";
-                        return Err(Error::new(ErrorKind::UnexpectedEof, msg));
-                    } else {
-                        let msg = "failed to read extended entry identifier";
-                        return Err(annotate(error, msg));
-                    }
+                    return Err(Error::new(ErrorKind::UnexpectedEof, msg));
+                } else {
+                    let msg = "failed to read extended entry identifier";
+                    return Err(annotate(error, msg));
                 }
             }
             while id_buffer.last() == Some(&0) {

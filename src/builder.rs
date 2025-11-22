@@ -54,7 +54,7 @@ impl<W: Write> Builder<W> {
             return Err(Error::new(ErrorKind::InvalidData, msg));
         }
         if actual_size % 2 != 0 {
-            self.writer.write_all(&[b'\n'])?;
+            self.writer.write_all(b"\n")?;
         }
         Ok(())
     }
@@ -117,7 +117,7 @@ impl<W: Write> GnuBuilder<W> {
                 short_names.insert(identifier);
             }
         }
-        let name_table_needs_padding = name_table_size % 2 != 0;
+        let name_table_needs_padding = !name_table_size.is_multiple_of(2);
         if name_table_needs_padding {
             name_table_size += 3; // ` /\n`
         }
@@ -195,7 +195,7 @@ impl<W: Write> GnuBuilder<W> {
             return Err(Error::new(ErrorKind::InvalidData, msg));
         }
         if actual_size % 2 != 0 {
-            self.writer.write_all(&[b'\n'])?;
+            self.writer.write_all(b"\n")?;
         }
 
         Ok(())
@@ -252,11 +252,12 @@ mod tests {
     impl<'a> Read for SlowReader<'a> {
         fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
             if self.current_position >= self.buffer.len() {
-                return Ok(0);
+                Ok(0)
+            } else {
+                buf[0] = self.buffer[self.current_position];
+                self.current_position += 1;
+                Ok(1)
             }
-            buf[0] = self.buffer[self.current_position];
-            self.current_position += 1;
-            return Ok(1);
         }
     }
 

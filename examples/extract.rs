@@ -12,8 +12,6 @@
 //! ar -x <path/to/archive.a>
 //! ```
 
-extern crate ar;
-
 use std::env;
 use std::fs::File;
 use std::io;
@@ -31,7 +29,7 @@ fn main() {
     let input_path = Path::new(&input_path);
     let input_file =
         File::open(input_path).expect("failed to open input file");
-    let mut archive = ar::Archive::new(input_file);
+    let mut archive = tokio_ar::Archive::new(input_file);
 
     while let Some(entry) = archive.next_entry() {
         let mut entry = entry.expect("failed to parse archive entry");
@@ -40,9 +38,12 @@ fn main() {
                 .expect("Non UTF-8 filename"),
         )
         .to_path_buf();
-        let mut output_file = File::create(&output_path)
-            .expect(&format!("unable to create file {:?}", output_path));
-        io::copy(&mut entry, &mut output_file)
-            .expect(&format!("failed to extract file {:?}", output_path));
+        let mut output_file =
+            File::create(&output_path).unwrap_or_else(|_| {
+                panic!("unable to create file {:?}", output_path)
+            });
+        io::copy(&mut entry, &mut output_file).unwrap_or_else(|_| {
+            panic!("failed to extract file {:?}", output_path)
+        });
     }
 }

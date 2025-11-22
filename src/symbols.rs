@@ -12,14 +12,15 @@ impl<'a, R: Read> Iterator for Symbols<'a, R> {
     type Item = &'a [u8];
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(ref table) = self.archive.symbol_table {
-            if self.index < table.len() {
-                let next = table[self.index].0.as_slice();
-                self.index += 1;
-                return Some(next);
-            }
+        if let Some(ref table) = self.archive.symbol_table
+            && self.index < table.len()
+        {
+            let next = table[self.index].0.as_slice();
+            self.index += 1;
+            Some(next)
+        } else {
+            None
         }
-        None
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {

@@ -124,7 +124,7 @@ impl<R: Read> Archive<R> {
 
     /// Reads the next entry from the archive, or returns None if there are no
     /// more.
-    pub fn next_entry(&mut self) -> Option<Result<Entry<R>>> {
+    pub fn next_entry(&mut self) -> Option<Result<Entry<'_, R>>> {
         loop {
             if self.error {
                 return None;
@@ -274,7 +274,7 @@ impl<R: Read + Seek> Archive<R> {
 
     /// Scans the archive and jumps to the entry at the given index.  Returns
     /// an error if the index is not less than the result of `count_entries()`.
-    pub fn jump_to_entry(&mut self, index: usize) -> io::Result<Entry<R>> {
+    pub fn jump_to_entry(&mut self, index: usize) -> io::Result<Entry<'_, R>> {
         self.scan_if_necessary()?;
         if index >= self.entry_headers.len() {
             let msg = "Entry index out of bounds";
@@ -284,7 +284,7 @@ impl<R: Read + Seek> Archive<R> {
         self.reader.seek(SeekFrom::Start(offset))?;
         let header = &self.entry_headers[index].header;
         let size = header.size();
-        self.padding = size % 2 != 0;
+        self.padding = !size.is_multiple_of(2);
         self.next_entry_index = index + 1;
         Ok(Entry {
             header,
@@ -366,7 +366,7 @@ impl<R: Read + Seek> Archive<R> {
     /// archive's symbol table.  If the archive doesn't have a symbol table,
     /// this method will still succeed, but the iterator won't produce any
     /// values.
-    pub fn symbols(&mut self) -> io::Result<Symbols<R>> {
+    pub fn symbols(&mut self) -> io::Result<Symbols<'_, R>> {
         self.parse_symbol_table_if_necessary()?;
         Ok(Symbols { archive: self, index: 0 })
     }
@@ -395,11 +395,12 @@ mod tests {
     impl<'a> Read for SlowReader<'a> {
         fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
             if self.current_position >= self.buffer.len() {
-                return Ok(0);
+                Ok(0)
+            } else {
+                buf[0] = self.buffer[self.current_position];
+                self.current_position += 1;
+                Ok(1)
             }
-            buf[0] = self.buffer[self.current_position];
-            self.current_position += 1;
-            return Ok(1);
         }
     }
 
@@ -1137,7 +1138,7 @@ mod tests {
 
             for filename in filenames {
                 builder
-                    .append(&Header::new(filename, 1), &mut (&[b'?'] as &[u8]))
+                    .append(&Header::new(filename, 1), &b"?"[..])
                     .expect("add file");
             }
         }

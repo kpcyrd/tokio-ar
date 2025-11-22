@@ -6,8 +6,6 @@
 //! cargo run --example symbols <path/to/archive.a>
 //! ```
 
-extern crate ar;
-
 use std::env;
 use std::fs::File;
 use std::path::Path;
@@ -23,7 +21,7 @@ fn main() {
     let input_path = Path::new(&input_path);
     let input_file =
         File::open(input_path).expect("failed to open input file");
-    let mut archive = ar::Archive::new(input_file);
+    let mut archive = tokio_ar::Archive::new(input_file);
 
     for symbol in archive.symbols().expect("failed to parse symbols") {
         println!("{}", String::from_utf8_lossy(symbol));
