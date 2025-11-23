@@ -7,10 +7,11 @@
 //! ```
 
 use std::env;
-use std::fs::File;
 use std::path::Path;
+use tokio::fs::File;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let num_args = env::args().count();
     if num_args != 2 {
         println!("Usage: symbols <path/to/archive.a>");
@@ -20,10 +21,10 @@ fn main() {
     let input_path = env::args().nth(1).unwrap();
     let input_path = Path::new(&input_path);
     let input_file =
-        File::open(input_path).expect("failed to open input file");
+        File::open(input_path).await.expect("failed to open input file");
     let mut archive = tokio_ar::Archive::new(input_file);
 
-    for symbol in archive.symbols().expect("failed to parse symbols") {
+    for symbol in archive.symbols().await.expect("failed to parse symbols") {
         println!("{}", String::from_utf8_lossy(symbol));
     }
 }

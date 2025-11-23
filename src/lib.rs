@@ -7,7 +7,7 @@
 //! a full archive entry into memory.
 //!
 //! The API of this crate is meant to be similar to that of the
-//! [`tar`](https://crates.io/crates/tar) crate.
+//! [`tar`](https://crates.io/crates/tar) crate, but uses async I/O with tokio.
 //!
 //! # Format variants
 //!
@@ -32,35 +32,43 @@
 //!
 //! ```no_run
 //! use tokio_ar::Builder;
-//! use std::fs::File;
-//! // Create a new archive that will be written to foo.a:
-//! let mut builder = Builder::new(File::create("foo.a").unwrap());
-//! // Add foo/bar.txt to the archive, under the name "bar.txt":
-//! builder.append_path("foo/bar.txt").unwrap();
-//! // Add foo/baz.txt to the archive, under the name "hello.txt":
-//! let mut file = File::open("foo/baz.txt").unwrap();
-//! builder.append_file(b"hello.txt", &mut file).unwrap();
+//! use tokio::fs::File;
+//!
+//! #[tokio::main]
+//! async fn main() {
+//!     // Create a new archive that will be written to foo.a:
+//!     let mut builder = Builder::new(File::create("foo.a").await.unwrap());
+//!     // Add foo/bar.txt to the archive, under the name "bar.txt":
+//!     builder.append_path("foo/bar.txt").await.unwrap();
+//!     // Add foo/baz.txt to the archive, under the name "hello.txt":
+//!     let mut file = File::open("foo/baz.txt").await.unwrap();
+//!     builder.append_file(b"hello.txt", &mut file).await.unwrap();
+//! }
 //! ```
 //!
 //! Reading an archive:
 //!
 //! ```no_run
 //! use tokio_ar::Archive;
-//! use std::fs::File;
-//! use std::io;
+//! use tokio::fs::File;
+//! use tokio::io;
 //! use std::str;
-//! // Read an archive from the file foo.a:
-//! let mut archive = Archive::new(File::open("foo.a").unwrap());
-//! // Iterate over all entries in the archive:
-//! while let Some(entry_result) = archive.next_entry() {
-//!     let mut entry = entry_result.unwrap();
-//!     // Create a new file with the same name as the archive entry:
-//!     let mut file = File::create(
-//!         str::from_utf8(entry.header().identifier()).unwrap(),
-//!     ).unwrap();
-//!     // The Entry object also acts as an io::Read, so we can easily copy the
-//!     // contents of the archive entry into the file:
-//!     io::copy(&mut entry, &mut file).unwrap();
+//!
+//! #[tokio::main]
+//! async fn main() {
+//!     // Read an archive from the file foo.a:
+//!     let mut archive = Archive::new(File::open("foo.a").await.unwrap());
+//!     // Iterate over all entries in the archive:
+//!     while let Some(entry_result) = archive.next_entry().await {
+//!         let mut entry = entry_result.unwrap();
+//!         // Create a new file with the same name as the archive entry:
+//!         let mut file = File::create(
+//!             str::from_utf8(entry.header().identifier()).unwrap(),
+//!         ).await.unwrap();
+//!         // The Entry object also acts as an AsyncRead, so we can easily copy the
+//!         // contents of the archive entry into the file:
+//!         io::copy(&mut entry, &mut file).await.unwrap();
+//!     }
 //! }
 //! ```
 

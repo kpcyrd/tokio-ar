@@ -13,12 +13,13 @@
 //! ```
 
 use std::env;
-use std::fs::File;
-use std::io;
 use std::path::Path;
 use std::str;
+use tokio::fs::File;
+use tokio::io;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let num_args = env::args().count();
     if num_args != 2 {
         println!("Usage: extract <path/to/archive.a>");
@@ -28,10 +29,10 @@ fn main() {
     let input_path = env::args().nth(1).unwrap();
     let input_path = Path::new(&input_path);
     let input_file =
-        File::open(input_path).expect("failed to open input file");
+        File::open(input_path).await.expect("failed to open input file");
     let mut archive = tokio_ar::Archive::new(input_file);
 
-    while let Some(entry) = archive.next_entry() {
+    while let Some(entry) = archive.next_entry().await {
         let mut entry = entry.expect("failed to parse archive entry");
         let output_path = Path::new(
             str::from_utf8(entry.header().identifier())
@@ -39,10 +40,10 @@ fn main() {
         )
         .to_path_buf();
         let mut output_file =
-            File::create(&output_path).unwrap_or_else(|_| {
+            File::create(&output_path).await.unwrap_or_else(|_| {
                 panic!("unable to create file {:?}", output_path)
             });
-        io::copy(&mut entry, &mut output_file).unwrap_or_else(|_| {
+        io::copy(&mut entry, &mut output_file).await.unwrap_or_else(|_| {
             panic!("failed to extract file {:?}", output_path)
         });
     }

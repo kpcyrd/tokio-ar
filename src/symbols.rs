@@ -1,14 +1,13 @@
-use std::io::Read;
-
 use crate::Archive;
+use tokio::io::AsyncRead;
 
 /// An iterator over the symbols in the symbol table of an archive.
-pub struct Symbols<'a, R: 'a + Read> {
+pub struct Symbols<'a, R: 'a + AsyncRead + Unpin> {
     pub(crate) archive: &'a Archive<R>,
     pub(crate) index: usize,
 }
 
-impl<'a, R: Read> Iterator for Symbols<'a, R> {
+impl<'a, R: AsyncRead + Unpin> Iterator for Symbols<'a, R> {
     type Item = &'a [u8];
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -33,4 +32,4 @@ impl<'a, R: Read> Iterator for Symbols<'a, R> {
     }
 }
 
-impl<'a, R: Read> ExactSizeIterator for Symbols<'a, R> {}
+impl<'a, R: AsyncRead + Unpin> ExactSizeIterator for Symbols<'a, R> {}

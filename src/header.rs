@@ -1,17 +1,17 @@
-use std::cmp::min;
-use std::collections::HashMap;
-use std::fs::Metadata;
-use std::io::{self, Error, ErrorKind, Read, Result, Write};
-use std::str;
-
-#[cfg(unix)]
-use std::os::unix::fs::MetadataExt;
-
 use crate::archive::{
     BSD_SORTED_SYMBOL_LOOKUP_TABLE_ID, BSD_SYMBOL_LOOKUP_TABLE_ID,
     GNU_NAME_TABLE_ID, GNU_SYMBOL_LOOKUP_TABLE_ID, Variant,
 };
 use crate::error::annotate;
+use std::cmp::min;
+use std::collections::HashMap;
+use std::fs::Metadata;
+use std::io::{Error, ErrorKind, Result};
+use std::str;
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+
+#[cfg(unix)]
+use std::os::unix::fs::MetadataExt;
 
 const ENTRY_HEADER_LEN: usize = 60;
 
@@ -114,20 +114,21 @@ impl Header {
 
     /// Parses and returns the next header and its length.  Returns `Ok(None)`
     /// if we are at EOF.
-    pub(crate) fn read<R>(
+    pub(crate) async fn read<R>(
         reader: &mut R,
         variant: &mut Variant,
         name_table: &mut Vec<u8>,
     ) -> Result<Option<(Header, u64)>>
     where
-        R: Read,
+        R: AsyncRead + Unpin,
     {
         let mut buffer = [0; 60];
-        let bytes_read = reader.read(&mut buffer)?;
+        let bytes_read = reader.read(&mut buffer).await?;
         if bytes_read == 0 {
             return Ok(None);
         } else if bytes_read < buffer.len()
-            && let Err(error) = reader.read_exact(&mut buffer[bytes_read..])
+            && let Err(error) =
+                reader.read_exact(&mut buffer[bytes_read..]).await
         {
             if error.kind() == ErrorKind::UnexpectedEof {
                 let msg = "unexpected EOF in the middle of archive entry \
@@ -147,13 +148,17 @@ impl Header {
         if *variant != Variant::BSD && identifier.starts_with(b"/") {
             *variant = Variant::GNU;
             if identifier == GNU_SYMBOL_LOOKUP_TABLE_ID {
-                io::copy(&mut reader.by_ref().take(size), &mut io::sink())?;
+                tokio::io::copy(
+                    &mut reader.take(size),
+                    &mut tokio::io::sink(),
+                )
+                .await?;
                 return Ok(Some((Header::new(identifier, size), header_len)));
             } else if identifier == GNU_NAME_TABLE_ID.as_bytes() {
                 *name_table = vec![0; size as usize];
-                reader.read_exact(name_table as &mut [u8]).map_err(|err| {
-                    annotate(err, "failed to read name table")
-                })?;
+                reader.read_exact(name_table as &mut [u8]).await.map_err(
+                    |err| annotate(err, "failed to read name table"),
+                )?;
                 return Ok(Some((Header::new(identifier, size), header_len)));
             }
             let start = parse_number("GNU filename index", &buffer[1..16], 10)?
@@ -205,10 +210,10 @@ impl Header {
             size -= padded_length;
             header_len += padded_length;
             let mut id_buffer = vec![0; padded_length as usize];
-            let bytes_read = reader.read(&mut id_buffer)?;
+            let bytes_read = reader.read(&mut id_buffer).await?;
             if bytes_read < id_buffer.len()
                 && let Err(error) =
-                    reader.read_exact(&mut id_buffer[bytes_read..])
+                    reader.read_exact(&mut id_buffer[bytes_read..]).await
             {
                 if error.kind() == ErrorKind::UnexpectedEof {
                     let msg = "unexpected EOF in the middle of extended \
@@ -226,7 +231,11 @@ impl Header {
             if identifier == BSD_SYMBOL_LOOKUP_TABLE_ID
                 || identifier == BSD_SORTED_SYMBOL_LOOKUP_TABLE_ID
             {
-                io::copy(&mut reader.by_ref().take(size), &mut io::sink())?;
+                tokio::io::copy(
+                    &mut reader.take(size),
+                    &mut tokio::io::sink(),
+                )
+                .await?;
                 return Ok(Some((Header::new(identifier, size), header_len)));
             }
         }
@@ -236,63 +245,78 @@ impl Header {
         )))
     }
 
-    pub(crate) fn write<W: Write>(&self, writer: &mut W) -> Result<()> {
+    pub(crate) async fn write<W: AsyncWrite + Unpin>(
+        &self,
+        writer: &mut W,
+    ) -> Result<()> {
         if self.identifier.len() > 16 || self.identifier.contains(&b' ') {
             let padding_length = (4 - self.identifier.len() % 4) % 4;
             let padded_length = self.identifier.len() + padding_length;
-            writeln!(
-                writer,
-                "#1/{:<13}{:<12}{:<6.6}{:<6.6}{:<8o}{:<10}`",
-                padded_length,
-                cap_mtime(self.mtime),
-                self.uid.to_string(),
-                self.gid.to_string(),
-                cap_mode(self.mode),
-                self.size + padded_length as u64
-            )?;
-            writer.write_all(&self.identifier)?;
-            writer.write_all(&vec![0; padding_length])?;
+            writer
+                .write_all(
+                    format!(
+                        "#1/{:<13}{:<12}{:<6.6}{:<6.6}{:<8o}{:<10}`\n",
+                        padded_length,
+                        cap_mtime(self.mtime),
+                        self.uid.to_string(),
+                        self.gid.to_string(),
+                        cap_mode(self.mode),
+                        self.size + padded_length as u64
+                    )
+                    .as_bytes(),
+                )
+                .await?;
+            writer.write_all(&self.identifier).await?;
+            writer.write_all(&vec![0; padding_length]).await?;
         } else {
-            writer.write_all(&self.identifier)?;
-            writer.write_all(&vec![b' '; 16 - self.identifier.len()])?;
-            writeln!(
-                writer,
-                "{:<12}{:<6.6}{:<6.6}{:<8o}{:<10}`",
-                cap_mtime(self.mtime),
-                self.uid.to_string(),
-                self.gid.to_string(),
-                cap_mode(self.mode),
-                self.size
-            )?;
+            writer.write_all(&self.identifier).await?;
+            writer.write_all(&vec![b' '; 16 - self.identifier.len()]).await?;
+            writer
+                .write_all(
+                    format!(
+                        "{:<12}{:<6.6}{:<6.6}{:<8o}{:<10}`\n",
+                        cap_mtime(self.mtime),
+                        self.uid.to_string(),
+                        self.gid.to_string(),
+                        cap_mode(self.mode),
+                        self.size
+                    )
+                    .as_bytes(),
+                )
+                .await?;
         }
         Ok(())
     }
 
-    pub(crate) fn write_gnu<W>(
+    pub(crate) async fn write_gnu<W>(
         &self,
         writer: &mut W,
         names: &HashMap<Vec<u8>, usize>,
     ) -> Result<()>
     where
-        W: Write,
+        W: AsyncWrite + Unpin,
     {
         if self.identifier.len() > 15 {
             let offset = names[&self.identifier];
-            write!(writer, "/{:<15}", offset)?;
+            writer.write_all(format!("/{:<15}", offset).as_bytes()).await?;
         } else {
-            writer.write_all(&self.identifier)?;
-            writer.write_all(b"/")?;
-            writer.write_all(&vec![b' '; 15 - self.identifier.len()])?;
+            writer.write_all(&self.identifier).await?;
+            writer.write_all(b"/").await?;
+            writer.write_all(&vec![b' '; 15 - self.identifier.len()]).await?;
         }
-        writeln!(
-            writer,
-            "{:<12}{:<6.6}{:<6.6}{:<8o}{:<10}`",
-            cap_mtime(self.mtime),
-            self.uid.to_string(),
-            self.gid.to_string(),
-            cap_mode(self.mode),
-            self.size
-        )?;
+        writer
+            .write_all(
+                format!(
+                    "{:<12}{:<6.6}{:<6.6}{:<8o}{:<10}`\n",
+                    cap_mtime(self.mtime),
+                    self.uid.to_string(),
+                    self.gid.to_string(),
+                    cap_mode(self.mode),
+                    self.size
+                )
+                .as_bytes(),
+            )
+            .await?;
         Ok(())
     }
 }
