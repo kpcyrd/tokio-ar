@@ -2,15 +2,15 @@
 name = "tokio-ar"
 version = "0.9.0"
 authors = ["Matthew D. Steele <mdsteele@alum.mit.edu>", "kpcyrd <git@rxv.cc>"]
-description = "A library for encoding/decoding Unix archive files."
-repository = "https://github.com/mdsteele/rust-ar"
-keywords = ["ar", "archive", "deb"]
+description = "Library for encoding/decoding Unix archive files (tokio support)"
+repository = "https://github.com/kpcyrd/tokio-ar"
+keywords = ["ar", "archive", "deb", "tokio"]
 license = "MIT"
 readme = "README.md"
 edition = "2024"
 
 [dependencies]
-tokio = { version = "1.48.0", features = ["io-util", "fs"] }
+tokio = { version = "1.48.0", features = ["fs", "io-util"] }
 
 [dev-dependencies]
-tokio = { version = "1.48.0", features = ["io-util", "macros", "rt-multi-thread", "fs"] }
+tokio = { version = "1.48.0", features = ["macros", "rt-multi-thread"] }
