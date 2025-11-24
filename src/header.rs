@@ -47,6 +47,8 @@ impl Header {
         }
     }
 
+    /// Creates a header with the file identifier and size from the given
+    /// filesystem metadata.
     #[cfg(not(unix))]
     pub fn from_metadata(identifier: Vec<u8>, meta: &Metadata) -> Header {
         Header::new(identifier, meta.len())

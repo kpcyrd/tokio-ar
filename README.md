@@ -1,4 +1,4 @@
-# rust-ar
+# tokio-ar
 
 [![Crates.io](https://img.shields.io/crates/v/tokio-ar.svg)](https://crates.io/crates/tokio-ar)
 [![Documentation](https://docs.rs/tokio-ar/badge.svg)](https://docs.rs/tokio-ar)
